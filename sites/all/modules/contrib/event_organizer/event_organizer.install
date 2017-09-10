@@ -1,0 +1,32 @@
+<?php
+function event_organizer_schema() {
+  $schema['eventorganizer'] = array(
+    'description'     => 'The organizer dropdown table.',
+    'fields'          => array(
+      'id'        => array(
+		'type' => 'serial',
+		'not null' => TRUE,
+		'unsigned' => TRUE,
+      ),
+      'value'        => array(
+        'type'        => 'varchar',
+        'length'      => 255,
+        'not null'    => TRUE,
+      ),
+      'random_key'    => array(
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+      'type'          => array(
+        'mysql_type' => 'enum(\'institute\',\'organisation\',\'company\')',
+      ),
+    ),
+    'primary key'     => array('id')
+    
+  );
+  
+  
+  return $schema;
+}
+?>
+

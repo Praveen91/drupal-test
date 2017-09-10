@@ -1,0 +1,2 @@
+Manually applied http://drupal.org/files/0001-Issue-1645260-make-login_destination-configuration-e.patch (http://drupal.org/node/1645260#comment-6937608)x
+

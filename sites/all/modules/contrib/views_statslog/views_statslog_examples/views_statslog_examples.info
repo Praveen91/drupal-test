@@ -1,0 +1,12 @@
+name = Views statslog examples
+description = Example views generating data for views statslog.
+core = 7.x
+package = Views Statslog
+php = 5.2.4
+dependencies[] = views
+features[ctools][] = views:views_default:3.0
+features[features_api][] = api:1
+features[views_view][] = statslog_nodes
+features[views_view][] = statslog_users
+features_exclude[dependencies][ctools] = ctools
+project path = profiles/drupal_development/modules/views_statslog

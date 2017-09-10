@@ -1,0 +1,101 @@
+/* hide the textarea visually. display: none will prevent from data being sent */
+.term-level-autocomplete-textarea {
+  height: 0;
+  overflow: hidden;
+}
+
+.term-level-autocomplete-search,
+.term-level-autocomplete-empty,
+.term-level-autocomplete-suggestions {
+  display: none;
+}
+
+.js .term-level-autocomplete-search,
+.js .term-level-autocomplete-empty,
+.js .term-level-autocomplete-suggestions {
+  display: block;
+}
+
+.tla-row .tla-hint {
+  opacity: 0.0;
+  transition: opacity 0.5s ease;
+  -webkit-transition: opacity 0.5s ease;
+  -moz-transition: opacity 0.5s ease;
+}
+
+.tla-row.new .tla-hint {
+  opacity: 1.0;
+}
+
+.tla-rating {
+  position: relative;
+}
+
+.tla-rating select {
+  position: absolute;
+  top: -999em;
+  left: -999em;
+}
+
+/**
+ * Stars
+ */
+.tla-stars {
+  font-size: 2em;
+  unicode-bidi: bidi-override;
+  direction: rtl;
+  text-align: left;
+  text-decoration: none;
+}
+
+.tla-stars button {
+  background: none;
+  border: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.tla-stars button span {
+  display: none;
+}
+
+.tla-stars button i {
+  font-style: normal;
+}
+
+.tla-stars button i:before {
+  content: '\2606';
+}
+
+.tla-stars button.selected i:before,
+.tla-stars button.selected ~ button i:before {
+  content: '\2605';
+}
+
+.tla-stars button:hover i:before,
+.tla-stars button:hover ~ button i:before {
+  color: #ff7016;
+}
+
+/**
+ * Action buttons
+ */
+.tla-actions button {
+  background: none;
+  border: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.tla-actions button span {
+  display: none;
+}
+
+.tla-actions button i {
+  font-style: normal;
+}
+
+.tla-actions button.tla-delete i:before {
+  font-size: 1.5em;
+  content: '\2716';
+}

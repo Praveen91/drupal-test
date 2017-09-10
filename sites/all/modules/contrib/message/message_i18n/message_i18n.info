@@ -1,0 +1,6 @@
+name = Message type translation
+description = Translate message type descriptions.
+dependencies[] = message
+dependencies[] = i18n_string
+package = Multilingual - Internationalization
+core = 7.x

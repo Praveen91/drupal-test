@@ -1,0 +1,347 @@
+<?php
+/**
+ * @file
+ * This module allows you to have e-mail verification and in meanwhile allowing the users to type their own passwords.
+ * If they do not verify their accounts in a certain time interval the user will be blocked.
+ */
+// TODO: Build action for rules for e-mail verification e-mail send!
+
+/**
+ * Implements hook_cron_queue_info().
+ */
+function user_email_verification_cron_queue_info() {
+  $queues['user_email_verification_tasks'] = array(
+    'worker callback' => 'user_email_verification_task',
+    'time' => 15,
+  );
+  $queues['user_email_verification_reminders'] = array(
+    'worker callback' => 'user_email_verification_reminder',
+    'time' => 15,
+  );
+  return $queues;
+}
+
+/**
+ * Queue worker callback for running a single task.
+ *
+ * @param array $task
+ *   The task to process.
+ */
+function user_email_verification_task($uid) {
+  $account = user_load($uid);
+  $account->status = 0;
+  user_save($account);
+}
+
+/**
+ * Queue worker callback for sending a single reminder.
+ *
+ * @param int $uid
+ *   The user ID to process.
+ */
+function user_email_verification_reminder($uid) {
+  // Only send the reminder if the user is not verified yet and the number of
+  // reminders has not been reached yet.
+  $interval = variable_get('user_email_verification_validate_interval', 86400);
+  $num_reminders = variable_get('user_email_verification_num_reminders', 0);
+  $reminder_interval = $interval / ($num_reminders+1);
+  $result = db_query("SELECT reminders FROM {user_email_verification} WHERE uid = :uid
+    AND verified = 0 AND reminders < :num_reminders AND last_reminder < :reminder", array(
+    ':uid' => $uid,
+    ':num_reminders' => $num_reminders,
+    ':reminder' => REQUEST_TIME - $reminder_interval,
+  ))->fetchField();
+
+  if ($result === FALSE) {
+    return;
+  }
+
+  $account = user_load($uid);
+  $params['account'] = $account;
+  $language = user_preferred_language($account);
+  drupal_mail('user_email_verification', 'verify', $account->mail, $language, $params);
+
+  // Always increase the reminder mail counter by one even if sending the mail
+  // failed. Some mail systems like Mandrill return FALSE if they cannot deliver
+  // the mail to an invalid address. We need to increase the counter to make
+  // sure the users get blocked at some point.
+  db_update('user_email_verification')
+    ->condition('uid', $account->uid)
+    ->expression('reminders', 'reminders + 1')
+    ->fields(array('last_reminder' => REQUEST_TIME))
+    ->execute();
+}
+
+/**
+ * Implements hook_cron().
+ */
+function user_email_verification_cron() {
+  $interval = variable_get('user_email_verification_validate_interval', 86400);
+  $num_reminders = variable_get('user_email_verification_num_reminders', 0);
+  $reminder_interval = $interval / ($num_reminders+1);
+
+  $skip_roles = variable_get('user_email_verification_roles', array());
+  $skip_roles = array_filter($skip_roles);
+
+  // Select those that need to be blocked.
+  $query = db_select('user_email_verification', 'uev');
+  $query->join('users', 'u', 'uev.uid = u.uid');
+
+  if (!empty($skip_roles)) {
+    $query->leftJoin('users_roles', 'ur', 'ur.uid = uev.uid');
+    $query->distinct('uev.uid');
+    $or = db_or()
+      ->condition('ur.rid', array_keys($skip_roles), 'NOT IN')
+      ->isNull('ur.rid'); // normal registered users don't have an entry in the users_roles table.
+    $query->condition($or);
+  }
+
+  $result = $query
+    ->fields('u', array('uid'))
+    ->condition('uev.verified', 0, '=')
+    ->condition('u.uid', 1, '>')
+    ->condition('uev.last_reminder', REQUEST_TIME - $reminder_interval, '<')
+    ->condition('uev.reminders', $num_reminders, '>=')
+    ->execute();
+
+  $queue = DrupalQueue::get('user_email_verification_tasks');
+  foreach ($result as $account) {
+    $queue->createItem($account->uid);
+  }
+
+  // Select those that need to be sent a reminder.
+  $query = db_select('user_email_verification', 'uev');
+  $query->join('users', 'u', 'uev.uid = u.uid');
+
+  if (!empty($skip_roles)) {
+    $query->leftJoin('users_roles', 'ur', 'ur.uid = uev.uid');
+    $query->distinct('uev.uid');
+    $or = db_or()
+      ->condition('ur.rid', array_keys($skip_roles), 'NOT IN')
+      ->isNull('ur.rid'); // normal registered users don't have an entry in the users_roles table.
+    $query->condition($or);
+  }
+
+  $result = $query
+    ->fields('u', array('uid'))
+    ->condition('uev.verified', 0, '=')
+    ->condition('u.uid', 1, '>')
+    ->condition('uev.last_reminder', REQUEST_TIME - $reminder_interval, '<')
+    ->condition('uev.reminders', $num_reminders, '<')
+    ->execute();
+
+  $queue = DrupalQueue::get('user_email_verification_reminders');
+  foreach ($result as $account) {
+    $queue->createItem($account->uid);
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function user_email_verification_menu() {
+
+  $items['user/verify'] = array(
+    'title' => 'Request new e-mail verification',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('user_email_verification_request'),
+    'access callback' => TRUE,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'user_email_verification.admin.inc',
+  );
+
+  $items['user/email-verify/%/%/%'] = array(
+    'title' => 'Verify user e-mail',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('user_email_verification_verify', 2, 3, 4),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+    'file' => 'user_email_verification.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements of hook_form_FORM_ID_alter().
+ */
+function user_email_verification_form_user_admin_settings_alter(&$form, &$form_state, $form_id) {
+  $form['user_email_verification'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('User e-mail verification'),
+  );
+
+  $roles = array_map('check_plain', user_roles(TRUE));
+  unset($roles[DRUPAL_AUTHENTICATED_RID]);
+  $form['user_email_verification']['user_email_verification_roles'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Roles'),
+    '#default_value' => variable_get('user_email_verification_roles', array()),
+    '#options' => $roles,
+    '#access' => !empty($roles) && user_access('administer permissions'),
+    '#description' => t('Select the roles for which we should not verify the e-mail address!'),
+  );
+
+  $form['user_email_verification']['user_email_verification_validate_interval'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Verification time interval'),
+    '#required' => TRUE,
+    '#default_value' => variable_get('user_email_verification_validate_interval', 86400),
+    '#description' => t('Enter the time interval in seconds in which the user must validate his/her e-mail.'),
+    '#element_validate' => array('element_validate_number'),
+  );
+
+  $form['user_email_verification']['user_email_verification_num_reminders'] = array(
+    '#type' => 'select',
+    '#title' => t('Send reminder'),
+    '#options' => array(
+      0 => '- never -',
+      1 => 'Once',
+      2 => 'Twice',
+      3 => 'Three times',
+    ),
+    '#required' => TRUE,
+    '#default_value' => variable_get('user_email_verification_num_reminders', 0),
+    '#description' => t('Select the number of reminders to be sent spread equally through the time interval in which the user must validate his/her e-mail.'),
+  );
+
+  //TODO: Add the e-mail templates to be manageble through account settings.
+}
+
+/**
+ * Implements hook_user_delete().
+ */
+function user_email_verification_user_delete($account) {
+  db_delete('user_email_verification')->condition('uid', $account->uid)->execute();
+}
+
+/**
+ * Implements hook_user_insert().
+ */
+function user_email_verification_user_insert(&$edit, $account, $category) {
+  db_insert('user_email_verification')
+    ->fields(array(
+      'uid'        => $account->uid,
+      'verified'   => 0,
+      'last_reminder' => REQUEST_TIME,
+      'reminders' => 0,
+    ))
+    ->execute();
+}
+
+/**
+ * Implements hook_mail_alter().
+ */
+function user_email_verification_mail_alter(&$message) {
+  if ($message['module'] == 'user' || $message['module'] == 'user_email_verification') {
+    $language = $message['language'];
+    $params = $message['params'];
+    $account = $params['account'];
+    if (!empty($account)) {
+      if (!empty($message['subject'])) {
+        $message['subject'] = str_replace('[user:verify-email]', user_email_verification_url($account), $message['subject']);
+      }
+
+      if (!empty($message['body'])) {
+        foreach ($message['body'] as &$body) {
+          $body = str_replace('[user:verify-email]', user_email_verification_url($account), $body);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_mail().
+ */
+function user_email_verification_mail($key, &$message, $params) {
+  $language = $message['language'];
+
+  if ($key == 'verify') {
+    $account = $params['account'];
+    $message['subject'] .= variable_get('user_email_verification_subject', t('Verification e-mail'));
+    $message['body'][] = variable_get('user_email_verification_body', t('Please verify your e-mail by following the link: [user:verify-email]'));
+  }
+
+  if ($key == 'verify_blocked') {
+    $account = $params['account'];
+    $message['subject'] .= t('An blocked account verify his e-mail.');
+    $message['body'][] = t('The blocked account ID: @AID validated his e-mail. If the account is not blocked for other reason, please unblock the account.');
+  }
+}
+
+function user_email_verification_mail_notify($op, $account, $language = NULL) {
+  // By default, we always notify except for canceled and blocked.
+  $params['account'] = $account;
+  $language = $language ? $language : user_preferred_language($account);
+  $mail = drupal_mail('user_email_verification', 'verify', $account->mail, $language, $params);
+  return empty($mail) ? NULL : $mail['result'];
+}
+
+/**
+ * Generate the
+ * @param unknown $account
+ * @return string
+ */
+function user_email_verification_url($account) {
+  $timestamp = REQUEST_TIME;
+  $hmac = user_email_verification_hmac($account->uid, $timestamp);
+
+  return url("user/email-verify/$account->uid/$timestamp/" . $hmac, array('absolute' => TRUE));
+}
+
+/**
+ * Generate HMAC.
+ * @param unknown $uid
+ * @param unknown $timestamp
+ * @return string
+ */
+function user_email_verification_hmac($uid, $timestamp) {
+  $string = drupal_get_hash_salt() . $uid . variable_get('user_email_verification_salt', 'salt');
+  return drupal_hmac_base64($timestamp . $uid, $string);
+}
+
+/**
+ * Return the verified flag
+ * @param int $uid
+ * @return bool
+ */
+function user_email_verification_load_verify_flag($uid) {
+  $result  = db_select('user_email_verification')->fields('user_email_verification', array('verified'))->condition('uid', $uid, '=')->execute()->fetchAssoc();
+  if (!empty($result)) {
+    return (bool)$result['verified'];
+  }
+
+  return FALSE;
+}
+
+/**
+ * Implements hook_user_view().
+ */
+function user_email_verification_user_view($account, $view_mode, $langcode) {
+  // Present the information if a user has a verified account.
+  if ($view_mode == "full" && user_access('administer users')) {
+
+    $account->content['user_email_verification'] = array(
+      '#type' => 'user_profile_category',
+      '#attributes' => array('class' => array('user-email-verified')),
+      '#title' => t('User email verification'),
+    );
+
+    $account->content['user_email_verification']['verified'] = array(
+      '#type' => 'user_profile_item',
+      '#title' => t('Verified account'),
+      '#markup' => user_email_verification_load_verify_flag($account->uid) ? t("Verified") : t("Not verified"),
+    );
+  }
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function user_email_verification_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'user_email_verification') . '/views',
+  );
+}

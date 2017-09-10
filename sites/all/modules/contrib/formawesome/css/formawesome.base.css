@@ -1,0 +1,23 @@
+/* Wrappers around buttons should still be inline. */
+.form-item.form-type-submit,
+.form-item.form-type-button {
+  display: inline;
+}
+
+/* Min width for Select2 containers, or else they dissappear without content. */
+.select2-container {
+  min-width: 12em;
+}
+
+/**
+ * Set inline containers to inline-block instead of inline, to fix select2
+ * widths.
+ */
+.container-inline div, .container-inline label {
+  display: -moz-inline-stack;
+  display: inline-block;
+  vertical-align: middle;
+  *vertical-align: auto;
+  zoom: 1;
+  *display: inline;
+}

@@ -1,0 +1,4 @@
+name = FormAwesome
+description = Drupal form enhancements.
+package = User Interface
+core = 7.x

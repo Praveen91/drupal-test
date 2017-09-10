@@ -1,0 +1,28 @@
+name = Romania Equestrian Adventures Travel
+description = Romania Horse holiday Equestrian Adventures
+core = 7.x
+base theme = travel
+engine = phptemplate
+
+stylesheets[all][] = css/jquery-ui.css
+stylesheets[all][] = css/bootstrap.css
+stylesheets[all][] = css/main-style.css
+
+scripts[] = js/jquery-3.js
+scripts[] = js/jquery-ui.js
+scripts[] = js/less.js
+scripts[] = js/bootstrap.js
+scripts[] = js/equestrian.js
+
+
+
+stylesheets[all][] = css/custom.css
+
+
+regions[header]         = Header
+regions[navigation]     = Navigation
+regions[highlighted]    = Highlighted
+regions[help]           = Help
+regions[content]        = Content
+regions[sidebar]        = Sidebar
+regions[footer]         = Footer

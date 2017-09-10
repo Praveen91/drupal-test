@@ -1,0 +1,6 @@
+name = Views Stats Log
+description = Periodically log statistical information using views.
+package = User interface
+dependencies[] = views
+core = 7.x
+

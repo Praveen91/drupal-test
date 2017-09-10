@@ -1,0 +1,376 @@
+<?php
+
+function event_organizer_menu() {
+  $items = array();
+
+  $items['test/event-organizer'] = array( //this creates a URL that will call this form at "examples/form-example"
+    'title' => 'Example Form', //page title
+    'description' => 'A form to mess around with.',
+    'page callback' => 'loadalldata', //this is the function that will be called when the page is accessed.  for a form, use drupal_get_form
+    'page arguments' => array('form_example_form'), //put the name of the form here
+    'access callback' => TRUE
+  );
+
+  return $items;
+}
+
+
+
+function loadalldata(){
+	
+	//organization  
+                $sql_job_organisation = "SELECT field_job_organization_value
+						FROM field_data_field_job_organization
+						GROUP BY field_job_organization_value";
+				$result=db_query($sql_job_organisation);
+				
+				$record = $result->fetchAll();
+				
+				if ($record){
+					
+					foreach($record as $key=>$val){
+						$organization = $val->field_job_organization_value;
+						 
+						 
+							db_insert('eventorganizer') 
+							->fields(array(
+							  'value' => strtolower(trim($organization)),
+							  'random_key' => random_str(8, 'abcdefghijklmnopqrstuvwxyz'),
+							  'type' => 'ORGANISATION',
+							))
+							->execute();
+							
+							
+							
+					/*$vocab = taxonomy_vocabulary_machine_name_load('event_organizer');
+                 	$term3 = (object) array(
+					 'name' => $organization,
+					 'description' => 'This is term 1',
+					 'vid' => $vocab->vid,
+					);
+					$term3->field_value['und']['0']['value'] = $organization;
+					$term3->field_random_key['und']['0']['value'] = random_str(8, 'abcdefghijklmnopqrstuvwxyz');
+					$term3->field_type['und']['0']['value'] = 'ORGANISATION';
+					taxonomy_term_save($term3);	*/
+						 
+					} 
+				}
+	
+	//COMPANY  
+                $sql_student_company = "SELECT field_resume_xp_organization_value
+        FROM field_data_field_resume_xp_organization
+        GROUP BY field_resume_xp_organization_value";
+				$result=db_query($sql_student_company);
+				
+				$record = $result->fetchAll();
+				
+				if ($record){
+					
+					foreach($record as $key=>$val){
+						$company = $val->field_resume_xp_organization_value;
+												 
+						 
+							db_insert('eventorganizer') 
+							->fields(array(
+							  'value' => strtolower(trim($company)),
+							  'random_key' => random_str(32),
+							  'type' => 'COMPANY',
+							))
+							->execute();
+							
+							
+					/*$vocab = taxonomy_vocabulary_machine_name_load('event_organizer');
+                 	$term2 = (object) array(
+					 'name' => $company,
+					 'description' => 'This is term 1',
+					 'vid' => $vocab->vid,
+					);
+					$term2->field_value['und']['0']['value'] = $company;
+					$term2->field_random_key['und']['0']['value'] = random_str(32);
+					$term2->field_type['und']['0']['value'] = 'COMPANY';
+					taxonomy_term_save($term2);*/
+							
+						 
+					} 
+				}
+				
+	//INSTITUE  
+                $sql_student_institute = "SELECT name,tid
+						FROM taxonomy_term_data
+						WHERE vid = '17' 
+						GROUP BY name";
+				$result=db_query($sql_student_institute);
+				
+				$record = $result->fetchAll();
+				
+				if ($record){
+					
+					foreach($record as $key=>$val){
+						$inst = $val->name;
+						$tid = $val->tid;
+												 
+						 
+							db_insert('eventorganizer') 
+							->fields(array(
+							  'value' => strtolower(trim($inst)),
+							  'random_key' => $tid,
+							  'type' => 'INSTITUTE',
+							))
+							->execute();
+							
+					/*$vocab = taxonomy_vocabulary_machine_name_load('event_organizer');
+                 	$term1 = (object) array(
+					 'name' => $inst,
+					 'description' => 'This is term 1',
+					 'vid' => $vocab->vid,
+					);
+					$term1->field_value['und']['0']['value'] = $inst;
+					$term1->field_random_key['und']['0']['value'] = $tid;
+					$term1->field_type['und']['0']['value'] = 'INSTITUTE';
+					taxonomy_term_save($term1);	*/
+							
+							
+							
+						 
+					} 
+				}
+	
+	
+	
+	
+	}
+
+
+
+function event_organizer_field_collection_item_presave(FieldCollectionItemEntity $field_collection_item) {
+  
+  
+  //check already  entry in dripdown table
+  
+    $institute_name   = $field_collection_item->field_resume_institution_tag['und'][0]['name'];
+	$institute_id     = $field_collection_item->field_resume_institution_tag['und'][0]['tid'];
+	 $student_company = $field_collection_item->field_resume_xp_organization['und'][0]['value'];
+	if(!empty($institute_name)){
+		
+	$institute_name = strtolower(trim($institute_name));	
+		
+	/*$sql = "SELECT count(*) as cnt
+			FROM eventorganizer 
+			WHERE value = '".strtolower(trim($institute_name))."'
+			AND type='INSTITUTE'
+			";
+    $count_nodes = db_query($sql)->fetchAssoc();*/
+    
+    
+    $query = db_select('eventorganizer', 'e');
+                $query->condition('e.value',$institute_name, '=');
+                $query->condition('e.type','INSTITUTE', '=');
+                $app_exist=$query->fields('e', array('id'))->execute();
+                $total_app = $app_exist->rowCount();
+    
+    
+    
+    if($total_app == 0){
+		
+		
+		db_insert('eventorganizer') 
+							->fields(array(
+							  'value' => $institute_name,
+							  'random_key' => $institute_id,
+							  'type' => 'INSTITUTE',
+							))
+							->execute();
+		
+		
+		
+		$vocab = taxonomy_vocabulary_machine_name_load('event_organizer');
+                 	$term1 = (object) array(
+					 'name' => $institute_name,
+					 'description' => 'This is term 1',
+					 'vid' => $vocab->vid,
+					);
+					$term1->field_value['und']['0']['value'] = $institute_name;
+					$term1->field_random_key['und']['0']['value'] = $institute_id;
+					$term1->field_type['und']['0']['value'] = 'INSTITUTE';
+					taxonomy_term_save($term1);			 
+		}
+	}
+		
+		
+		/************Company**************/
+		if(!empty($student_company)){
+			
+			
+		/*$sql_company = "SELECT count(*) as cnt
+			    FROM eventorganizer 
+			    WHERE value = '".strtolower(trim($student_company))."'
+			    AND (type = 'ORGANISATION' OR type = 'COMPANY')
+			";
+        $count_nodes_company = db_query($sql_company)->fetchAssoc();*/
+        
+        
+        $student_company = strtolower(trim($student_company));
+			
+	$query = db_select('eventorganizer','e');
+            $query->condition('e.value',$student_company,'=');
+            $def_app_or = db_or()->condition('e.type', 'ORGANISATION', '=')->condition('e.type', 'COMPANY', '=');
+            $query->condition($def_app_or);		
+			$comp_exist=$query->fields('e', array('id'))->execute();
+            $count_nodes_company = $comp_exist->rowCount();
+    
+    
+    if($count_nodes_company == 0){
+		
+		$random_key_comp = random_str(32);
+		db_insert('eventorganizer') 
+							->fields(array(
+							  'value' => $student_company,
+							  'random_key' => $random_key_comp,
+							  'type' => 'COMPANY',
+							))
+							->execute();
+		
+		
+		$vocab = taxonomy_vocabulary_machine_name_load('event_organizer');
+                 	$term2 = (object) array(
+					 'name' => $student_company,
+					 'description' => 'This is term 1',
+					 'vid' => $vocab->vid,
+					);
+					$term2->field_value['und']['0']['value'] = $student_company;
+					$term2->field_random_key['und']['0']['value'] = $random_key_comp;
+					$term2->field_type['und']['0']['value'] = 'COMPANY';
+					taxonomy_term_save($term2);			 
+		}
+	}
+		
+		
+		 
+}
+
+
+function event_organizer_node_presave($node) {
+	
+	/************Scheme-node-add-update***********/
+
+	$isfeaturedscheme = $node->field_isfeaturedscheme['und'][0]['value'];
+	
+	if(!empty($isfeaturedscheme) && $isfeaturedscheme=='Yes'){
+		//reset all Yes to no previously
+		$scheme_node_id = $node->nid;
+		
+		if(!empty($scheme_node_id)){
+				
+				$sql_all_featured_scheme = "SELECT entity_id
+			                             FROM field_data_field_isfeaturedscheme
+			                             WHERE field_isfeaturedscheme_value = 'Yes'
+			                             AND  entity_id != ".$scheme_node_id;
+                 $total_entity_id = db_query($sql_all_featured_scheme)->fetchAll();
+                 
+                 if(is_array($total_entity_id) && count($total_entity_id) > 0){ 
+					 foreach($total_entity_id as $kk){
+							$node = node_load($kk->entity_id); 
+							$node->field_isfeaturedscheme['und'][0]['value'] = 'No';
+							field_attach_update('node', $node);	
+						 }
+				 }
+					
+				
+	    }else{
+			
+				$sql_all_featured_scheme = "SELECT entity_id
+			                             FROM field_data_field_isfeaturedscheme
+			                             WHERE field_isfeaturedscheme_value = 'Yes'";
+                 $total_entity_id = db_query($sql_all_featured_scheme)->fetchAll();
+                 
+                 if(is_array($total_entity_id) && count($total_entity_id) > 0){ 
+					 foreach($total_entity_id as $kk){
+							$node = node_load($kk->entity_id); 
+							$node->field_isfeaturedscheme['und'][0]['value'] = 'No';
+							field_attach_update('node', $node);	
+						 }
+				 }
+			
+			}
+	    
+	    
+	}
+
+	
+	
+	/************Organization**************/
+	$job_organization = $node->field_job_organization['und'][0]['value'];
+	
+	if(!empty($job_organization)){
+		
+	/*$sql_job_organisation = "SELECT count(*) as cnt
+			    FROM eventorganizer 
+			    WHERE value = '".strtolower(trim($job_organization))."'
+			    AND (type = 'ORGANISATION' OR type = 'COMPANY')
+			";
+    $count_nodes_organization = db_query($sql_job_organisation)->fetchAssoc();*/
+    
+    $job_organization = strtolower(trim($job_organization));
+    $query = db_select('eventorganizer','e');
+            $query->condition('e.value',$job_organization,'=');
+            $def_app_or = db_or()->condition('e.type', 'ORGANISATION', '=')->condition('e.type', 'COMPANY', '=');
+            $query->condition($def_app_or);		
+			$org_exist=$query->fields('e', array('id'))->execute();
+            $count_nodes_org = $org_exist->rowCount();		
+    
+    
+    if($count_nodes_org == 0){
+		
+		$random_key_org = random_str(8, 'abcdefghijklmnopqrstuvwxyz');
+		
+		db_insert('eventorganizer') 
+							->fields(array(
+							  'value' => $job_organization,
+							  'random_key' => $random_key_org,
+							  'type' => 'ORGANISATION',
+							))
+							->execute();
+		
+		
+		$vocab = taxonomy_vocabulary_machine_name_load('event_organizer');
+                 	$term3 = (object) array(
+					 'name' => $job_organization,
+					 'description' => 'This is term 1',
+					 'vid' => $vocab->vid,
+					);
+					$term3->field_value['und']['0']['value'] = $job_organization;
+					$term3->field_random_key['und']['0']['value'] = $random_key_org;
+					$term3->field_type['und']['0']['value'] = 'ORGANISATION';
+					taxonomy_term_save($term3);			 
+		}
+	}
+	
+}
+
+
+function event_organizer_views_query_alter(&$view, &$query) {
+	if($view->name=='event' || $view->name=='expired_event'){
+	  
+	     global $user;
+		  
+		 $user_role = implode(', ', array_slice($user->roles, 1));
+		 
+		 if($user_role == 'applicant' || $user->uid == 0){
+		    unset($query->where[0]['conditions'][0]);	 
+		 }
+	  
+   }
+	
+}
+
+
+function event_organizer_views_pre_render(&$view) {
+  if ($view->name=='event' || $view->name=='expired_event') {    
+    $view->build_info['title'] = $view->build_info['title'].' ('.$view->total_rows.')';
+  }
+}
+
+
+
+
+?>

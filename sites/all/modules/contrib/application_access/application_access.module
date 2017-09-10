@@ -1,0 +1,151 @@
+<?php
+function application_access_user_login(&$edit, $account) {
+ //job ids
+ $sql = "SELECT group_concat(entity_id) as entity_id 
+         FROM field_data_field_job_email
+         WHERE field_job_email_email = '".$account->mail."'  ";
+ 
+ $result = db_query($sql);
+  
+ $row = $result->fetchAssoc();
+ $job_id = $row['entity_id'];
+
+ //job application ids
+ if(!empty($job_id)) {
+ $sql_application = "SELECT entity_id
+                     FROM field_data_field_job_application_job_ref
+                     WHERE field_job_application_job_ref_target_id IN ($job_id) ";
+ 
+ $result_application = db_query($sql_application);
+  
+ }
+    
+    if ($result_application) {
+        while ($row_application = $result_application->fetchAssoc()) {
+          
+               $entity_id = $row_application['entity_id'];
+              
+              //insert into acl table
+              $update = 'update_'.$entity_id;
+              $delete = 'delete_'.$entity_id;
+              
+              $sql_check_acl = "SELECT * 
+                               FROM acl 
+                               WHERE name = '".$update."'
+                               ";
+              $acl_check_acl     = db_query($sql_check_acl);   
+              $row_check_acl = $acl_check_acl->fetchAssoc();
+                            
+               if(!is_array($row_check_acl)){
+              
+              $nid = db_insert('acl')
+					->fields(array(
+					  'module' => 'content_access',
+					  'name' =>   $update
+					))
+					->execute();
+		      
+              $id_update = dpm($nid);
+           
+              $nid_del = db_insert('acl')
+					->fields(array(
+					  'module' => 'content_access',
+					  'name' =>   $delete
+					))
+					->execute();
+					
+			  $id_delete = dpm($nid_del);		
+              
+              //insert into acl_node table
+              $sql_update_node = "INSERT INTO acl_node(acl_id,nid,grant_view,grant_update,grant_delete,priority) VALUES($id_update,$entity_id,0,1,0,0)";
+              db_query($sql_update_node);
+              
+              $sql_delete_node = "INSERT INTO acl_node(acl_id,nid,grant_view,grant_update,grant_delete,priority) VALUES($id_delete,$entity_id,0,0,1,0)";
+              db_query($sql_delete_node);
+    	  }
+              
+              //insert into acl_user table
+              
+              $txt = 'view_'.$entity_id;
+       
+              $sql_acl_id = "SELECT acl_id FROM acl WHERE name = '".$txt."'";
+              $acl_id     = db_query($sql_acl_id);
+              $row_aclid = $acl_id->fetchAssoc();
+        
+              $acl_id = $row_aclid['acl_id'];
+              $user_id = $account->uid;
+              
+              //check validation
+              $sql_check_acluser = "SELECT * 
+                                    FROM acl_user 
+                                    WHERE acl_id = '".$acl_id."' 
+                                    AND uid = '".$user_id."'";
+              $acl_check_acluser     = db_query($sql_check_acluser);
+              $row_check_acluser = $acl_check_acluser->fetchAssoc();
+              
+              if(!is_array($row_check_acluser)){
+				  $sql_acl_user = "INSERT INTO acl_user(acl_id,uid) VALUES($acl_id,$user_id)";
+                  db_query($sql_acl_user);
+				  }
+            
+        }
+     
+  }
+  
+}
+
+function application_access_node_update($node) {
+	
+	if($node->type == 'job_per_template' || $node->type == 'job_per_link' || $node->type == 'job_per_file'){
+	        $application_email = 	$node->field_job_email['und'][0]['email'];
+	        $application_user = substr($application_email, 0, strrpos($application_email, '@'));
+	        
+	        if(!empty($application_email)){
+		
+			$query = db_select('users', 'u')
+			  ->fields('u', array('uid'))
+			  ->condition('u.mail', $application_email)
+			  ->execute();
+			
+		     $result = $query->fetch();
+        
+			if(!$result->uid) {
+
+			  //$password = user_password(8);
+			  //$password = $application_user.'app@!#123';
+			  $password = 'app@!#123';
+		      $application_user = $application_user.time();   
+			  //set up the user fields
+			  $fields = array(
+				'name' => $application_user,
+				'mail' => $application_email,
+				'pass' => $password,
+				'status' => 1,
+				'init' => 'email address',
+				'roles' => array(
+				  DRUPAL_AUTHENTICATED_RID => 'authenticated user',
+				  '100482362' => 'recruiter'
+				),
+			  );
+			  //the first parameter is left blank so a new user is created
+			  $account = user_save('', $fields);
+			  // If you want to send the welcome email, use the following code
+			  // Manually set the password so it appears in the e-mail.
+			  $account->password = $fields['pass'];
+			  // Send the e-mail through the user module.
+			  drupal_mail('user', 'register_application_email', $application_email, NULL, array('account' => $account), variable_get('site_mail', 'noreply@example..com'));
+			}  
+        
+        }
+		
+		}
+	
+}
+
+function application_access_user_logout($account) {
+  setcookie('popup_message_displayed', '', 1, '/');
+}
+
+
+
+?>

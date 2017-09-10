@@ -1,0 +1,3 @@
+core = "7.x"
+description = "Module give access to event organizer."
+name = "Event Organizer"

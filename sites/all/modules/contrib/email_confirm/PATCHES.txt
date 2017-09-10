@@ -1,0 +1,1 @@
+https://www.drupal.org/files/issues/email_confirm-redo-security-checks-and-URL-hash-building_2463481-1.patch

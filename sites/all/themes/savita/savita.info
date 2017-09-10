@@ -1,0 +1,61 @@
+name = 'Savita'
+description = 'Savita is a modern Drupal Theme that features clean responsive design and is loaded with plenty of hot features.'
+package = 'Core'
+version = 'VERSION'
+core = '7.x'
+screenshot = 'screenshot.png'
+
+
+;css
+
+stylesheets[all][] = css/crayon.min.css
+stylesheets[all][] = css/update.css
+stylesheets[all][] = css/commerce-layout.css
+stylesheets[all][] = css/commerce-smallscreen.css
+stylesheets[all][] = css/commerce.css
+
+stylesheets[all][] = css/style.css
+stylesheets[all][] = css/stylesheets/stylesheet.css
+stylesheets[all][] = css/responsive.css
+stylesheets[all][] = js/jquery/jquery.jqzoom.css
+stylesheets[all][] = css/background-style/background.css 
+stylesheets[all][] = css/savita-update.css
+
+;js
+
+scripts[] = js/jquery/jquery.js
+scripts[] = js/jquery/jquery-migrate.min.js
+scripts[] = js/jquery/jquery.themepunch.tools.min.js
+scripts[] = js/jquery/jquery.themepunch.revolution.min.js
+
+scripts[] = js/jsparams-custom.js
+
+scripts[] = js/wp-emoji-release.min.js
+scripts[] = js/libs.js
+scripts[] = js/common.js
+scripts[] = js/jquery/jquery.smoothscroll.js
+scripts[] = js/jquery/jquery.stellar.min.js
+scripts[] = js/hoverIntent.min.js
+scripts[] = js/utils.min.js
+scripts[] = js/common.min.js
+scripts[] = js/jquery/jquery.jqzoom-core.js
+
+
+scripts[] = js/jquery/jquery.blockUI.min.js
+scripts[] = js/commerce.min.js
+scripts[] = js/jquery/jquery.cookie.min.js
+scripts[] = js/cart-fragments.min.js
+scripts[] = js/single-product.min.js
+scripts[] = js/savita-update.js
+
+;regions
+regions[search] = 'Header search'
+regions[main_menu] = 'Main menu'
+regions[content] = 'Main content'
+regions[sidebar_second] = 'Sidebar right'
+regions[slider] = 'Slider'
+regions[section] = 'Section content'
+regions[footer] = 'Footer'
+regions[bottom_blog] = 'Bottom blog'
+regions[bottom_product]  = 'Bottom product' 
+

@@ -1,0 +1,14 @@
+name = Better Watchdog UI Rules
+description = "Rules integration for database log entry events."
+package = Better Watchdog UI
+core = 7.x
+
+dependencies[] = better_watchdog_ui
+dependencies[] = rules
+
+; Information added by Drupal.org packaging script on 2015-11-18
+version = "7.x-2.0+8-dev"
+core = "7.x"
+project = "better_watchdog_ui"
+datestamp = "1447855740"
+

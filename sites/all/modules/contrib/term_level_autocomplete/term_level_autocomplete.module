@@ -1,0 +1,437 @@
+<?php
+/**
+ * Term level autocomplete widget.
+ */
+
+/**
+ * Implements hook_i18n_string_list_field_alter().
+ */
+function term_level_autocomplete_i18n_string_list_field_alter(&$properties, $type, $object) {
+  if ($type == "field_instance"  && $object['widget']['type'] == 'term_level_autocomplete_widget') {
+    $properties['field'][$object['field_name']][$object['bundle']] += array(
+      'rating_hint' => array(
+        'title' => t('Rating hint'),
+        'string' => $object['widget']['settings']['rating_hint'],
+      ),
+      'search_placeholder' => array(
+        'title' => t('Search placeholder'),
+        'string' => $object['widget']['settings']['search_placeholder'],
+      ),
+      'search_button' => array(
+        'title' => t('Search button'),
+        'string' => $object['widget']['settings']['search_button'],
+      ),
+      'suggestions_title' => array(
+        'title' => t('Suggestions title'),
+        'string' => $object['widget']['settings']['suggestions_title'],
+      ),
+      'empty_text' => array(
+        'title' => t('Empty text'),
+        'string' => $object['widget']['settings']['empty_text'],
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function term_level_autocomplete_menu() {
+  $items = array();
+  $items['term-level-autocomplete-test'] = array(
+    'title' => 'Term level autocomplete testpage',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('term_level_autocomplete_test'),
+    'access arguments' => array('administer site configuration'),
+  );
+
+  $items['term-level-autocomplete/%term_level_autocreate_vocabylaries'] = array(
+    'title' => 'Term level autocomplete callback',
+    'page callback' => 'term_level_autocomplete_callback',
+    'page arguments' => array(1),
+    'access callback' => FALSE,
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * _load() menu converter, to load vocabularies by vid and provide them
+ * to the page callback.
+ */
+function term_level_autocreate_vocabylaries_load($ids) {
+  return explode(',', $ids);
+}
+
+/**
+ * Autocomplete callback to load taxonomy terms from multiple vocabularies.
+ */
+function term_level_autocomplete_callback($vids, $fragment) {
+  $query = db_select('taxonomy_term_data', 't');
+  $query->addTag('translatable');
+  $query->addTag('term_access');
+  $tags_return = $query
+    ->fields('t', array('tid', 'name'))
+    ->condition('t.vid', $vids)
+    ->condition('t.name', '%' . db_like($fragment) . '%', 'LIKE')
+    ->range(0, 10)
+    ->execute()
+    ->fetchAllKeyed();
+  $term_matches = array();
+  foreach ($tags_return as $tag) {
+    $term_matches[$tag] = $tag;
+  }
+  drupal_json_output($term_matches);
+}
+
+/**
+ * Simple test form to demonstrate the term level autocomplete widget.
+ */
+function term_level_autocomplete_test($form, &$form_state) {
+  $form['test_term_levels'] = array(
+    '#search_button' => t('Add skills'),
+    '#type' => 'term_level_autocomplete',
+    '#levels' => array(
+      0 => 'Undefined',
+      1 => 'Beginner',
+      2 => 'Intermediate',
+      3 => 'Advanced',
+    ),
+    '#field_name' => 'field_resume_languages_level',
+    '#vocabulary' => 'languages',
+    '#autocreate_vocabulary' => 'languages',
+    '#default_value' => array(
+      708 => 0,
+      709 =>  3,
+    ),
+    '#suggestions' => array(
+      'PHP',
+      'JavaScript',
+    ),
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Submit'),
+  );
+  return $form;
+}
+
+function term_level_autocomplete_test_submit($form, &$form_state) {
+  drupal_set_message("<pre>" . print_r($form_state['values']['test_term_levels'], true) . "</pre>");
+}
+
+/**
+ * Implements hook_element_info().
+ */
+function term_level_autocomplete_element_info() {
+  $elements = array();
+  $elements['term_level_autocomplete'] = array(
+    "#input" => TRUE,
+    '#process' => array('term_level_autocomplete_element_process'),
+    '#element_validate' => array('term_level_autocomplete_element_validate'),
+    '#title' => '',
+    '#description' => '',
+    '#levels' => array(),
+    '#field_name' => FALSE,
+    '#suggestions' => array(),
+    '#vocabulary' => FALSE,
+    '#autocreate_vocabulary' => FALSE,
+    '#rating_hint' => t('Please choose a skill level'),
+    '#search_placeholder' => t('Add a new skill'),
+    '#search_button' => t('Add skill'),
+    '#suggestions_title' => t('Other people have added the following.'),
+    '#empty_text' => t('Please use the search box to add skills.'),
+  );
+  return $elements;
+}
+
+/**
+ * Widget builder.
+ */
+function term_level_autocomplete_element_process($element, &$form_state, &$complete_form) {
+  $element['#tree'] = TRUE;
+
+  // Wrap whole element.
+  $element['#prefix'] = '<div class="term-level-autocomplete">';
+  $element['#suffix'] = '</div>';
+
+  // Attach .js and .css assets.
+  $path = drupal_get_path('module', 'term_level_autocomplete');
+  $element['#attached'] = array(
+    'js' => array($path . '/term_level_autocomplete.js' => array()),
+    'css' => array($path . '/term_level_autocomplete.css' => array()),
+  );
+
+  $element['empty'] = array(
+    '#markup' => '<div class="term-level-autocomplete-empty">' . $element['#empty_text'] . '</div>'
+  );
+  // Term listing. Falls back to simple textarea.
+  $element['terms'] = array(
+    '#prefix' => '<div class="term-level-autocomplete-terms"><div class="term-level-autocomplete-table"></div><div class="term-level-autocomplete-textarea">',
+    "#suffix" => '</div></div>',
+    '#type' => 'textarea',
+    '#resizable' => False,
+    '#attributes' => array(
+      'data-term-levels' => json_encode($element['#levels']),
+      'data-rating-hint' => $element['#rating_hint'],
+    ),
+  );
+  // Fill in the default value.
+  if (isset($element['#default_value']) && is_array($element['#default_value'])) {
+    $value = array();
+    $terms = taxonomy_term_load_multiple(array_keys($element['#default_value']));
+    foreach ($element['#default_value'] as $tid => $level) {
+      $value[$terms[$tid]->name] = $level;
+    }
+    $element['terms']['#default_value'] = json_encode($value);
+  }
+
+  // Search box with autocomplete widget.
+  $element['search'] = array(
+    '#prefix' => '<div class="term-level-autocomplete-search">',
+    '#suffix' => '</div>',
+    'search' => array(
+      '#type' => 'textfield',
+      '#autocomplete_path' => 'autocomplete_deluxe/taxonomy' . $element['#field_name'],
+      '#title' => $element['#title'],
+      '#enhance' => TRUE,
+      '#attributes' => array(
+        'placeholder' => $element['#search_placeholder'],
+        'data-min-length' => 1,
+        'data-allow-unknown' => $element['#autocreate_vocabulary'],
+      ),
+      '#description' => $element['#description'],
+    ),
+    'add' => array(
+      '#type' => 'button',
+      '#value' => $element['#search_button'],
+    ),
+  );
+
+  if (count($element['#suggestions']) > 0) {
+    $element['suggestions'] = array(
+      '#title' => $element['#suggestions_title'],
+      '#theme' => 'item_list',
+      '#items' => $element['#suggestions'],
+      '#attributes' => array('class' => array('term-level-autocomplete-suggestions')),
+    );
+  }
+
+  return $element;
+}
+
+/**
+ * Widget validation and storage.
+ */
+function term_level_autocomplete_element_validate($element, &$form_state) {
+  // Decode json input.
+  $input = json_decode($element['terms']['#value']);
+  if ($input == NULL) {
+    $input = array();
+  }
+
+  // Build the actual value.
+  $value = array();
+
+  // Check if there is a vocabulary for autocreated terms.
+  $autocreate_vid = FALSE;
+  if (isset($element['#autocreate_vocabulary']) && $element['#autocreate_vocabulary']) {
+    $autocreate_vid = taxonomy_vocabulary_machine_name_load($element['#autocreate_vocabulary'])->vid;
+  }
+  foreach ($input as $name => $level) {
+
+    // Ensure the level value is allowed.
+    if (!array_key_exists($level, $element['#levels'])) {
+      form_error($element, t('Invalid term level !level.', array('!level' => $level)));
+    }
+
+    // Verify or optionally create the taxonomy term.
+    if (module_exists('content_taxonomy_et')) {
+      $voc = taxonomy_vocabulary_machine_name_load($element['#vocabulary']);
+      $term = content_taxonomy_et_get_first_possible_term($name, array($voc->vid));
+    }
+    else {
+      $terms = taxonomy_get_term_by_name($name, $element['#vocabulary']);
+      $term = array_pop($terms);
+    }
+
+    if (!$term) {
+      if ($autocreate_vid != FALSE) {
+        $term = new stdClass();
+        $term->name = $name;
+        $term->vid = $autocreate_vid;
+        taxonomy_term_save($term);
+      }
+      else {
+        form_error($element, t('Invalid term %term.', array('%term' => $name)));
+      }
+    }
+
+    // Add the value if there has been a term.
+    if ($term) {
+      $value[$term->tid] = $level;
+    }
+  }
+
+  // Set the form value.
+  form_set_value($element, $value, $form_state);
+}
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function term_level_autocomplete_field_widget_info() {
+  $info = term_level_autocomplete_element_info();
+  $info = $info['term_level_autocomplete'];
+  return array(
+    'term_level_autocomplete_widget' => array(
+      'label' => t('Term level autocomplete'),
+      'field types' => array('term_level'),
+      'behaviors' => array(
+        'multiple values' => FIELD_BEHAVIOR_CUSTOM,
+      ),
+      'settings' => array(
+        'autocreate_vocabulary' => '__none__',
+        'num_suggestions' => 0,
+        'rating_hint' => $info['#rating_hint'],
+        'search_placeholder' => $info['#search_placeholder'],
+        'search_button' => $info['#search_button'],
+        'suggestions' => $info['#suggestions'],
+        'suggestions_title' => $info['#suggestions_title'],
+        'empty_text' => $info['#empty_text'],
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_settings_form().
+ */
+function term_level_autocomplete_field_widget_settings_form($field, $instance) {
+  $settings = $instance['widget']['settings'];
+  $form = array();
+  $vocabularies = taxonomy_get_vocabularies();
+  $options = array('__none__' => t('Do not autocreate'));
+  foreach ($vocabularies as $vocabulary) {
+    $options[$vocabulary->machine_name] = $vocabulary->name;
+  }
+  $form['autocreate_vocabulary'] = array(
+    '#title' => t('Autocreate vocabulary'),
+    '#type' => 'select',
+    '#description' => t('Automatically created terms will end up in this vocabulary.'),
+    '#options' => $options,
+    '#default_value' => $settings['autocreate_vocabulary']
+  );
+
+  $form['num_suggestions'] = array(
+    '#title' => t('Number of suggestions'),
+    '#type' => 'textfield',
+    '#description' => t('Number of suggestions to fetch from existing data.'),
+    '#default_value' => $settings['num_suggestions'],
+  );
+
+  $form['rating_hint'] = array(
+    '#title' => t('Rating hint'),
+    '#type' => 'textfield',
+    '#description' => t('Hint displayed when user added a new skill.'),
+    '#default_value' => $settings['rating_hint'],
+  );
+
+  $form['search_placeholder'] = array(
+    '#title' => t('Search placeholder'),
+    '#type' => 'textfield',
+    '#description' => t('Placeholder text to display in search box.'),
+    '#default_value' => $settings['search_placeholder'],
+  );
+
+  $form['search_button'] = array(
+    '#title' => t('Search button'),
+    '#type' => 'textfield',
+    '#description' => t('Button text after search box..'),
+    '#default_value' => $settings['search_button'],
+  );
+
+  $form['suggestions_title'] = array(
+    '#title' => t('Suggestions title'),
+    '#type' => 'textfield',
+    '#description' => t('Title to display above the suggestions list.'),
+    '#default_value' => $settings['suggestions_title'],
+  );
+
+  $form['empty_text'] = array(
+    '#title' => t('Empty Text'),
+    '#type' => 'textarea',
+    '#description' => t('Text to display if the user has not yet chosen any skills.'),
+    '#default_value' => $settings['empty_text'],
+  );
+
+  return $form;
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function term_level_autocomplete_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $element['#element_validate'] = array('term_level_autocomplete_widget_validate');
+  $autocreate_vocabulary = FALSE;
+  $settings = $instance['widget']['settings'];
+
+  if ($instance['widget']['settings']['autocreate_vocabulary'] != '__none__') {
+    $autocreate_vocabulary = $settings['autocreate_vocabulary'];
+  }
+
+  $element['title'] = array(
+    '#markup' => '<h2>' . i18n_string_translate(array('field', $instance['field_name'], $instance['bundle'], 'label'), $instance['label']) . '</h2>',
+  );
+
+  $element['term_levels'] = array(
+    '#type' => 'term_level_autocomplete',
+    '#levels' => term_level_options_list($field),
+    '#field_name' => $field['field_name'],
+    '#vocabulary' => $field['settings']['voc'],
+    '#autocreate_vocabulary' => $autocreate_vocabulary,
+    '#default_value' => array(),
+    '#suggestions' => array(),
+    '#description' => i18n_string_translate(array('field', $instance['field_name'], $instance['bundle'], 'description'), $instance['description'])
+  );
+  $translatable_texts = array(
+    'rating_hint',
+    'search_placeholder',
+    'search_button',
+    'suggestions_title',
+    'empty_text',
+  );
+
+  foreach ($translatable_texts as $t) {
+    $element['term_levels']['#' . $t] = i18n_string_translate(array('field', $instance['field_name'], $instance['bundle'], $t), $settings[$t]);
+  }
+
+  foreach ($items as $item) {
+    $element['term_levels']['#default_value'][$item['tid']] = $item['level'];
+  }
+
+  if ($instance['widget']['settings']['num_suggestions'] > 0) {
+    foreach ($field['storage']['details']['sql'][FIELD_LOAD_CURRENT] as $table  => $columns) {
+      // TODO: Not that hacky.
+      $result = db_query("SELECT {$columns['tid']} AS tid, COUNT(*) AS num FROM {{$table}} GROUP BY tid ORDER BY num DESC LIMIT {$instance['widget']['settings']['num_suggestions']}")->fetchAllAssoc('tid');
+      foreach (taxonomy_term_load_multiple(array_keys($result)) as $term) {
+        $element['term_levels']['#suggestions'][] = $term->name;
+      }
+    }
+  }
+
+  return $element;
+}
+
+/**
+ * Validation hook.
+ */
+function term_level_autocomplete_widget_validate($element, &$form_state) {
+  $values = array();
+  $parents = $element['#parents'];
+  $parents[] = 'term_levels';
+  foreach (drupal_array_get_nested_value($form_state['values'], $parents) as $tid => $level) {
+    $values[] = array('tid' => $tid, 'level' => $level);
+  }
+  form_set_value($element, $values, $form_state);
+}
