@@ -14,6 +14,24 @@ function demo_permission() {
 
 
 /**
+ * Implements hook_menu().
+ */
+function demo_menu() {
+  $items = array();
+  
+  // First Item in the menu
+  $items['admin/config/test-link'] = array(
+    'title' => 'MY MODULE NAME',				// Menu item title
+	'description' => 'View MY MODULE NAME.',		// Menu item description
+	'access arguments' => array('view MY_MODULE_NAME'), 	// Specify 'who' can access the page
+	'page callback' => 'MY_MODULE_NAME_display', 		// Specify a function to build the page
+	'type' => MENU_NORMAL_ITEM,				// Use 'MENU_NORMAL_ITEM' for the first item
+  );
+  return $items;
+}
+
+
+/**
  * Implements hook_node_view().
  */
 function demo_node_view($node, $view_mode, $langcode) {
