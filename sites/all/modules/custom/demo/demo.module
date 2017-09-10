@@ -6,7 +6,7 @@
 function demo_permission() {
   return array(
     'administer demo module' =>  array(
-      'title' => t('Administer demo module'),
+      'title' => t('Administer demo module praveen'),
       'description' => t('Perform administration tasks for my module.'),
     ),
   );
@@ -18,7 +18,7 @@ function demo_permission() {
  */
 function demo_menu() {
   $items = array();
-  
+
   // First Item in the menu
   $items['admin/config/test-link'] = array(
     'title' => 'MY MODULE NAME',				// Menu item title
