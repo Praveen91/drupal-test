@@ -6,7 +6,7 @@
 function demo_permission() {
   return array(
     'administer demo module' =>  array(
-      'title' => t('Administer demo module'),
+      'title' => t('Administer demo  Surya module changed again'),
       'description' => t('Perform administration tasks for my module.'),
     ),
   );
